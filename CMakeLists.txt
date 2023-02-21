@@ -54,8 +54,9 @@ message(STATUS "=======================================================")
 cpr_option(CPR_GENERATE_COVERAGE "Set to ON to generate coverage reports." OFF)
 cpr_option(CPR_CURL_NOSIGNAL "Set to ON to disable use of signals in libcurl." OFF)
 cpr_option(CURL_VERBOSE_LOGGING "Curl verbose logging during building curl" OFF)
-cpr_option(CPR_USE_SYSTEM_GTEST "If ON, this project will look in the system paths for an installed gtest library. If none is found it will use the build in one." OFF)
+cpr_option(CPR_USE_SYSTEM_GTEST "If ON, this project will look in the system paths for an installed gtest library. If none is found it will use the built-in one." OFF)
 cpr_option(CPR_USE_SYSTEM_CURL "If enabled we will use the curl lib already installed on this system." OFF)
+cpr_option(CPR_ENABLE_CURL_HTTP_ONLY "If enabled we will only use the HTTP/HTTPS protocols from CURL. If disabled, all the CURL protocols are enabled. This is useful if your project uses libcurl and you need support for other CURL features e.g. sending emails." ON)
 cpr_option(CPR_ENABLE_SSL "Enables or disables the SSL backend. Required to perform HTTPS requests." ON)
 cpr_option(CPR_FORCE_OPENSSL_BACKEND "Force to use the OpenSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
 cpr_option(CPR_FORCE_WINSSL_BACKEND "Force to use the WinSSL backend. If CPR_FORCE_OPENSSL_BACKEND, CPR_FORCE_DARWINSSL_BACKEND, CPR_FORCE_MBEDTLS_BACKEND, and CPR_FORCE_WINSSL_BACKEND are set to to OFF, cpr will try to automatically detect the best available SSL backend (WinSSL - Windows, OpenSSL - Linux, DarwinSSL - Mac ...)." OFF)
@@ -184,14 +185,14 @@ if(CPR_USE_SYSTEM_CURL)
             message(STATUS "Curl ${CURL_VERSION_STRING} found on this system.")
             # To be able to load certificates under Windows when using OpenSSL:
             if(CMAKE_USE_OPENSSL AND WIN32 AND (NOT (CURL_VERSION_STRING VERSION_GREATER_EQUAL "7.71.0")))
-                message(FATAL_ERROR "Your system curl version (${CURL_VERSION_STRING}) is too old to support OpenSSL on Windows which requires curl >= 7.71.0. Update your curl version, use WinSSL, disable SSL or use the build in version of curl.")
+                message(FATAL_ERROR "Your system curl version (${CURL_VERSION_STRING}) is too old to support OpenSSL on Windows which requires curl >= 7.71.0. Update your curl version, use WinSSL, disable SSL or use the built-in version of curl.")
             endif()
         else()
             find_package(CURL COMPONENTS HTTP)
             if(CURL_FOUND)
-                message(FATAL_ERROR "Curl found on this system but WITHOUT HTTPS/SSL support. Either disable SSL by setting CPR_ENABLE_SSL to OFF or use the build in version of curl by setting CPR_USE_SYSTEM_CURL to OFF.")
+                message(FATAL_ERROR "Curl found on this system but WITHOUT HTTPS/SSL support. Either disable SSL by setting CPR_ENABLE_SSL to OFF or use the built-in version of curl by setting CPR_USE_SYSTEM_CURL to OFF.")
             else()
-                message(FATAL_ERROR "Curl not found on this system. To use the build in version set CPR_USE_SYSTEM_CURL to OFF.")
+                message(FATAL_ERROR "Curl not found on this system. To use the built-in version set CPR_USE_SYSTEM_CURL to OFF.")
             endif()
         endif()
     else()
@@ -199,11 +200,11 @@ if(CPR_USE_SYSTEM_CURL)
         if(CURL_FOUND)
             message(STATUS "Curl found on this system.")
         else()
-            message(FATAL_ERROR "Curl not found on this system. To use the build in version set CPR_USE_SYSTEM_CURL to OFF.")
+            message(FATAL_ERROR "Curl not found on this system. To use the built-in version set CPR_USE_SYSTEM_CURL to OFF.")
         endif()
     endif()
 else()
-    message(STATUS "Configuring build in curl...")
+    message(STATUS "Configuring built-in curl...")
 
     # ZLIB is optional for curl
     # to disable it:
@@ -215,8 +216,10 @@ else()
         include(cmake/zlib_external.cmake)
     endif()
 
-    # We only need HTTP (and HTTPS) support:
-    set(HTTP_ONLY ON CACHE INTERNAL "" FORCE)
+    if (CPR_ENABLE_CURL_HTTP_ONLY)
+        # We only need HTTP (and HTTPS) support:
+        set(HTTP_ONLY ON CACHE INTERNAL "" FORCE)
+    endif()
     set(BUILD_CURL_EXE OFF CACHE INTERNAL "" FORCE)
     set(BUILD_TESTING OFF)
 
@@ -270,6 +273,9 @@ else()
     # Disable linting for curl
     clear_variable(DESTINATION CMAKE_CXX_CLANG_TIDY BACKUP CMAKE_CXX_CLANG_TIDY_BKP)
 
+    if (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
+        cmake_policy(SET CMP0135 NEW)
+    endif()
     FetchContent_Declare(curl
                          URL                    https://github.com/curl/curl/releases/download/curl-7_80_0/curl-7.80.0.tar.xz
                          URL_HASH               SHA256=a132bd93188b938771135ac7c1f3ac1d3ce507c1fcbef8c471397639214ae2ab # the file hash for curl-7.80.0.tar.xz
